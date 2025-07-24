@@ -149,10 +149,25 @@ export class Avatar3D {
         }
         
         try {
-            // For demo, create a simple avatar based on type
-            // In production, this would load actual 3D models
-            this.avatar = this.createSimpleAvatar(avatarType);
-            this.scene.add(this.avatar);
+            // Option 1: Ready Player Me Integration
+            if (avatarType === 'readyplayerme') {
+                // Example Ready Player Me avatar URL
+                const avatarUrl = 'https://models.readyplayer.me/YOUR_AVATAR_ID.glb';
+                await this.loadReadyPlayerMeAvatar(avatarUrl);
+            }
+            // Option 2: Custom GLTF/GLB models
+            else if (avatarType === 'custom') {
+                await this.loadCustomModel('/assets/avatars/my-character.glb');
+            }
+            // Option 3: VRM models (popular for anime-style avatars)
+            else if (avatarType === 'vrm') {
+                await this.loadVRMModel('/assets/avatars/my-character.vrm');
+            }
+            // Default: Simple procedural avatar
+            else {
+                this.avatar = this.createSimpleAvatar(avatarType);
+                this.scene.add(this.avatar);
+            }
             
             // Setup animations
             this.setupAnimations();
@@ -438,5 +453,86 @@ export class Avatar3D {
         }
         
         window.removeEventListener('resize', this.onWindowResize);
+    }
+
+    // Ready Player Me loader
+    async loadReadyPlayerMeAvatar(url) {
+        const loader = new THREE.GLTFLoader();
+        
+        return new Promise((resolve, reject) => {
+            loader.load(
+                url,
+                (gltf) => {
+                    this.avatar = gltf.scene;
+                    this.avatar.scale.set(1, 1, 1);
+                    this.avatar.position.set(0, 0, 0);
+                    
+                    // Setup animations if available
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        this.mixer = new THREE.AnimationMixer(this.avatar);
+                        this.animations.clips = gltf.animations;
+                    }
+                    
+                    this.scene.add(this.avatar);
+                    resolve();
+                },
+                (progress) => {
+                    console.log('Loading progress:', (progress.loaded / progress.total) * 100 + '%');
+                },
+                (error) => {
+                    reject(error);
+                }
+            );
+        });
+    }
+    
+    // Custom GLTF/GLB model loader
+    async loadCustomModel(path) {
+        const loader = new THREE.GLTFLoader();
+        
+        return new Promise((resolve, reject) => {
+            loader.load(
+                path,
+                (gltf) => {
+                    this.avatar = gltf.scene;
+                    this.scene.add(this.avatar);
+                    
+                    // Setup animation mixer
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        this.mixer = new THREE.AnimationMixer(this.avatar);
+                        
+                        // Map animations by name
+                        gltf.animations.forEach(clip => {
+                            this.animations[clip.name] = this.mixer.clipAction(clip);
+                        });
+                    }
+                    
+                    resolve();
+                },
+                undefined,
+                reject
+            );
+        });
+    }
+    
+    // VRM model loader (requires three-vrm library)
+    async loadVRMModel(path) {
+        // Note: You'll need to install three-vrm
+        // npm install @pixiv/three-vrm
+        
+        // Example implementation:
+        /*
+        import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
+        
+        const loader = new THREE.GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+        
+        const gltf = await loader.loadAsync(path);
+        const vrm = gltf.userData.vrm;
+        
+        this.avatar = vrm.scene;
+        this.vrm = vrm; // Store VRM instance for blendshape animations
+        this.scene.add(this.avatar);
+        */
     }
 }
