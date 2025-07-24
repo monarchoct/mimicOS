@@ -114,6 +114,25 @@ class AICompanionApp {
             this.createCompanion();
         });
         
+        // Avatar type selection - show/hide URL input
+        document.querySelectorAll('input[name="avatarType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const urlGroup = document.getElementById('avatar-url-group');
+                const needsUrl = ['readyplayerme', 'custom', 'vrm'].includes(e.target.value);
+                urlGroup.style.display = needsUrl ? 'block' : 'none';
+                
+                // Update placeholder based on type
+                const urlInput = document.getElementById('avatar-url');
+                if (e.target.value === 'readyplayerme') {
+                    urlInput.placeholder = 'Enter Ready Player Me URL or avatar ID';
+                } else if (e.target.value === 'custom') {
+                    urlInput.placeholder = 'Enter path to .glb/.gltf file';
+                } else if (e.target.value === 'vrm') {
+                    urlInput.placeholder = 'Enter path to .vrm file';
+                }
+            });
+        });
+        
         // Modal controls
         document.getElementById('close-modal').addEventListener('click', () => {
             this.hideCompanionModal();
@@ -223,6 +242,18 @@ class AICompanionApp {
             description: formData.get('description')
         };
         
+        // Add avatar-specific data
+        const avatarUrl = formData.get('avatarUrl');
+        if (avatarUrl) {
+            companionData.avatarData = {
+                url: avatarUrl,
+                avatarId: avatarUrl, // For Ready Player Me
+                modelPath: avatarUrl, // For custom models
+                vrmPath: avatarUrl,   // For VRM models
+                vroidPath: avatarUrl  // For VRoid models
+            };
+        }
+        
         try {
             const companion = await this.companions.createCompanion(companionData);
             this.hideCompanionModal();
@@ -241,12 +272,26 @@ class AICompanionApp {
         
         // Update UI
         document.getElementById('active-companion-name').textContent = companion.name;
-        document.getElementById('active-companion-avatar').innerHTML = 
-            `<i class="fas fa-${companion.avatarType === 'realistic' ? 'user' : 
-              companion.avatarType === 'anime' ? 'star' : 'smile'}"></i>`;
         
-        // Load 3D avatar
-        await this.avatar3d.loadAvatar(companion.id, companion.avatarType);
+        // Update avatar icon based on type
+        const iconMap = {
+            realistic: 'user',
+            anime: 'star',
+            cartoon: 'smile',
+            readyplayerme: 'globe',
+            custom: 'cube',
+            vrm: 'user-astronaut'
+        };
+        
+        document.getElementById('active-companion-avatar').innerHTML = 
+            `<i class="fas fa-${iconMap[companion.avatarType] || 'user'}"></i>`;
+        
+        // Load 3D avatar with avatar data
+        await this.avatar3d.loadAvatar(
+            companion.id, 
+            companion.avatarType,
+            companion.avatarData || {}
+        );
         
         // Clear chat and add welcome message
         this.chat.clearMessages();

@@ -19,6 +19,9 @@
     <!-- Three.js GLTFLoader for 3D model loading -->
     <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
     
+    <!-- Three.js DRACOLoader for compressed models -->
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
+    
     <!-- Ready Player Me Avatar SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@readyplayerme/rpm-react-sdk@latest/dist/index.umd.js"></script>
 </head>
@@ -197,7 +200,40 @@
                                     <span>Cartoon</span>
                                 </div>
                             </label>
+                            <label class="avatar-option">
+                                <input type="radio" name="avatarType" value="readyplayerme">
+                                <div class="avatar-preview readyplayerme">
+                                    <i class="fas fa-globe"></i>
+                                    <span>Ready Player Me</span>
+                                </div>
+                            </label>
+                            <label class="avatar-option">
+                                <input type="radio" name="avatarType" value="custom">
+                                <div class="avatar-preview custom">
+                                    <i class="fas fa-upload"></i>
+                                    <span>Custom Model</span>
+                                </div>
+                            </label>
+                            <label class="avatar-option">
+                                <input type="radio" name="avatarType" value="vrm">
+                                <div class="avatar-preview vrm">
+                                    <i class="fas fa-user-astronaut"></i>
+                                    <span>VRM/VRoid</span>
+                                </div>
+                            </label>
                         </div>
+                    </div>
+                    
+                    <div class="form-group" id="avatar-url-group" style="display: none;">
+                        <label for="avatar-url">Avatar URL/Path</label>
+                        <input 
+                            type="text" 
+                            id="avatar-url" 
+                            name="avatarUrl" 
+                            placeholder="Enter avatar URL or file path"
+                        >
+                        <small>For Ready Player Me: Enter .glb URL or avatar ID<br>
+                               For Custom/VRM: Enter file path (e.g., /assets/avatars/model.glb)</small>
                     </div>
 
                     <div class="form-group">

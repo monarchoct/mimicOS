@@ -1,4 +1,4 @@
-// 3D Avatar Module using Three.js
+// 3D Avatar Module - Comprehensive System
 export class Avatar3D {
     constructor() {
         this.scene = null;
@@ -12,6 +12,15 @@ export class Avatar3D {
         this.container = null;
         this.quality = 'high';
         this.isInitialized = false;
+        
+        // Avatar-specific properties
+        this.vrm = null; // For VRM avatars
+        this.morphTargets = {}; // For facial expressions
+        this.bones = {}; // For procedural animations
+        
+        // Loaders
+        this.gltfLoader = null;
+        this.vrmLoader = null;
     }
     
     init(containerId) {
@@ -20,6 +29,9 @@ export class Avatar3D {
             console.error('Container not found:', containerId);
             return;
         }
+        
+        // Initialize loaders
+        this.initLoaders();
         
         // Initialize Three.js scene
         this.setupScene();
@@ -32,6 +44,16 @@ export class Avatar3D {
         
         this.isInitialized = true;
         console.log('3D Avatar system initialized');
+    }
+    
+    initLoaders() {
+        // GLTF Loader for GLB/GLTF files
+        this.gltfLoader = new THREE.GLTFLoader();
+        
+        // Add DRACOLoader for compressed models (optional but recommended)
+        const dracoLoader = new THREE.DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+        this.gltfLoader.setDRACOLoader(dracoLoader);
     }
     
     setupScene() {
@@ -55,8 +77,18 @@ export class Avatar3D {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = this.quality === 'high';
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1;
         
         this.container.appendChild(this.renderer.domElement);
+        
+        // Add ground plane for shadows
+        const groundGeometry = new THREE.PlaneGeometry(10, 10);
+        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
     }
     
     setupLighting() {
@@ -93,7 +125,7 @@ export class Avatar3D {
         // Simple rotation controls
         let isDragging = false;
         let previousMouseX = 0;
-        let targetRotationY = 0;
+        this.targetRotationY = 0;
         
         this.renderer.domElement.addEventListener('mousedown', (e) => {
             isDragging = true;
@@ -104,7 +136,7 @@ export class Avatar3D {
             if (!isDragging || !this.avatar) return;
             
             const deltaX = e.clientX - previousMouseX;
-            targetRotationY += deltaX * 0.01;
+            this.targetRotationY += deltaX * 0.01;
             previousMouseX = e.clientX;
         });
         
@@ -126,19 +158,16 @@ export class Avatar3D {
             if (!isDragging || !this.avatar) return;
             
             const deltaX = e.touches[0].clientX - previousMouseX;
-            targetRotationY += deltaX * 0.01;
+            this.targetRotationY += deltaX * 0.01;
             previousMouseX = e.touches[0].clientX;
         });
         
         this.renderer.domElement.addEventListener('touchend', () => {
             isDragging = false;
         });
-        
-        // Smooth rotation in animation loop
-        this.targetRotationY = targetRotationY;
     }
     
-    async loadAvatar(companionId, avatarType) {
+    async loadAvatar(companionId, avatarType, avatarData = {}) {
         // Show loading indicator
         this.showLoading(true);
         
@@ -146,43 +175,553 @@ export class Avatar3D {
         if (this.avatar) {
             this.scene.remove(this.avatar);
             this.avatar = null;
+            this.vrm = null;
+            this.morphTargets = {};
+            this.bones = {};
         }
         
         try {
-            // Option 1: Ready Player Me Integration
-            if (avatarType === 'readyplayerme') {
-                // Example Ready Player Me avatar URL
-                const avatarUrl = 'https://models.readyplayer.me/YOUR_AVATAR_ID.glb';
-                await this.loadReadyPlayerMeAvatar(avatarUrl);
-            }
-            // Option 2: Custom GLTF/GLB models
-            else if (avatarType === 'custom') {
-                await this.loadCustomModel('/assets/avatars/my-character.glb');
-            }
-            // Option 3: VRM models (popular for anime-style avatars)
-            else if (avatarType === 'vrm') {
-                await this.loadVRMModel('/assets/avatars/my-character.vrm');
-            }
-            // Default: Simple procedural avatar
-            else {
-                this.avatar = this.createSimpleAvatar(avatarType);
-                this.scene.add(this.avatar);
+            switch (avatarType) {
+                case 'readyplayerme':
+                    await this.loadReadyPlayerMeAvatar(avatarData.url || avatarData.avatarId);
+                    break;
+                    
+                case 'custom':
+                    await this.loadCustomModel(avatarData.modelPath || '/assets/avatars/default.glb');
+                    break;
+                    
+                case 'vrm':
+                    await this.loadVRMModel(avatarData.vrmPath || '/assets/avatars/default.vrm');
+                    break;
+                    
+                case 'mixamo':
+                    await this.loadMixamoCharacter(avatarData);
+                    break;
+                    
+                case 'vroid':
+                    await this.loadVRoidModel(avatarData.vroidPath);
+                    break;
+                    
+                default:
+                    // Fallback to simple avatar
+                    this.avatar = this.createSimpleAvatar(avatarType);
+                    this.scene.add(this.avatar);
             }
             
-            // Setup animations
-            this.setupAnimations();
+            // Setup animations based on avatar type
+            this.setupAnimationsForType(avatarType);
             
             // Play idle animation
             this.playAnimation('idle');
             
+            // Store avatar info
+            if (this.avatar) {
+                this.avatar.userData.companionId = companionId;
+                this.avatar.userData.avatarType = avatarType;
+            }
+            
             this.showLoading(false);
+            
         } catch (error) {
             console.error('Failed to load avatar:', error);
             this.showLoading(false);
             this.showError('Failed to load avatar');
+            
+            // Fallback to simple avatar
+            this.avatar = this.createSimpleAvatar('realistic');
+            this.scene.add(this.avatar);
         }
     }
     
+    // Ready Player Me Integration
+    async loadReadyPlayerMeAvatar(urlOrId) {
+        let avatarUrl = urlOrId;
+        
+        // If it's just an ID, construct the full URL
+        if (!urlOrId.startsWith('http')) {
+            avatarUrl = `https://models.readyplayer.me/${urlOrId}.glb`;
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.gltfLoader.load(
+                avatarUrl,
+                (gltf) => {
+                    this.avatar = gltf.scene;
+                    
+                    // Scale and position
+                    this.avatar.scale.set(1, 1, 1);
+                    this.avatar.position.set(0, 0, 0);
+                    
+                    // Enable shadows
+                    this.avatar.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    
+                    // Setup animations if available
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        this.mixer = new THREE.AnimationMixer(this.avatar);
+                        gltf.animations.forEach(clip => {
+                            this.animations[clip.name] = this.mixer.clipAction(clip);
+                        });
+                    }
+                    
+                    // Extract morph targets for facial expressions
+                    this.extractMorphTargets();
+                    
+                    // Extract bones for procedural animation
+                    this.extractBones();
+                    
+                    this.scene.add(this.avatar);
+                    resolve();
+                },
+                (progress) => {
+                    const percent = (progress.loaded / progress.total) * 100;
+                    console.log('Loading Ready Player Me avatar:', percent.toFixed(2) + '%');
+                    this.updateLoadingProgress(percent);
+                },
+                (error) => {
+                    reject(error);
+                }
+            );
+        });
+    }
+    
+    // Custom GLTF/GLB Model Loader
+    async loadCustomModel(path) {
+        return new Promise((resolve, reject) => {
+            this.gltfLoader.load(
+                path,
+                (gltf) => {
+                    this.avatar = gltf.scene;
+                    
+                    // Auto-scale to fit view
+                    const box = new THREE.Box3().setFromObject(this.avatar);
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 2 / maxDim;
+                    this.avatar.scale.multiplyScalar(scale);
+                    
+                    // Center the model
+                    const center = box.getCenter(new THREE.Vector3());
+                    this.avatar.position.sub(center.multiplyScalar(scale));
+                    this.avatar.position.y = 0;
+                    
+                    // Enable shadows
+                    this.avatar.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    
+                    // Setup animation mixer
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        this.mixer = new THREE.AnimationMixer(this.avatar);
+                        
+                        // Map animations by name
+                        gltf.animations.forEach(clip => {
+                            this.animations[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
+                        });
+                    }
+                    
+                    this.extractMorphTargets();
+                    this.extractBones();
+                    
+                    this.scene.add(this.avatar);
+                    resolve();
+                },
+                (progress) => {
+                    const percent = (progress.loaded / progress.total) * 100;
+                    this.updateLoadingProgress(percent);
+                },
+                reject
+            );
+        });
+    }
+    
+    // VRM Model Loader
+    async loadVRMModel(path) {
+        // For VRM support, you need to include the VRM loader
+        // This is a simplified version - full VRM support requires additional setup
+        
+        return new Promise((resolve, reject) => {
+            this.gltfLoader.load(
+                path,
+                (gltf) => {
+                    this.avatar = gltf.scene;
+                    
+                    // VRM specific setup
+                    if (gltf.userData.vrm) {
+                        this.vrm = gltf.userData.vrm;
+                        
+                        // Setup VRM blend shapes for expressions
+                        if (this.vrm.blendShapeProxy) {
+                            this.morphTargets = this.vrm.blendShapeProxy;
+                        }
+                    }
+                    
+                    // Standard setup
+                    this.avatar.scale.set(1, 1, 1);
+                    this.avatar.position.set(0, 0, 0);
+                    
+                    this.avatar.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        this.mixer = new THREE.AnimationMixer(this.avatar);
+                        gltf.animations.forEach(clip => {
+                            this.animations[clip.name] = this.mixer.clipAction(clip);
+                        });
+                    }
+                    
+                    this.scene.add(this.avatar);
+                    resolve();
+                },
+                (progress) => {
+                    const percent = (progress.loaded / progress.total) * 100;
+                    this.updateLoadingProgress(percent);
+                },
+                reject
+            );
+        });
+    }
+    
+    // Mixamo Character with Animations
+    async loadMixamoCharacter(data) {
+        const { characterPath, animationPaths = {} } = data;
+        
+        // Load the character model
+        await this.loadCustomModel(characterPath);
+        
+        // Load additional animations
+        const animationPromises = Object.entries(animationPaths).map(async ([name, path]) => {
+            return new Promise((resolve) => {
+                this.gltfLoader.load(
+                    path,
+                    (gltf) => {
+                        if (gltf.animations && gltf.animations.length > 0) {
+                            const clip = gltf.animations[0];
+                            clip.name = name;
+                            this.animations[name] = this.mixer.clipAction(clip);
+                        }
+                        resolve();
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load animation ${name}:`, error);
+                        resolve(); // Don't fail the whole process
+                    }
+                );
+            });
+        });
+        
+        await Promise.all(animationPromises);
+    }
+    
+    // VRoid Model Loader
+    async loadVRoidModel(path) {
+        // VRoid models are typically VRM format
+        return this.loadVRMModel(path);
+    }
+    
+    // Extract morph targets for facial expressions
+    extractMorphTargets() {
+        if (!this.avatar) return;
+        
+        this.avatar.traverse((child) => {
+            if (child.isMesh && child.morphTargetDictionary) {
+                Object.keys(child.morphTargetDictionary).forEach(key => {
+                    this.morphTargets[key] = {
+                        mesh: child,
+                        index: child.morphTargetDictionary[key]
+                    };
+                });
+            }
+        });
+        
+        console.log('Morph targets found:', Object.keys(this.morphTargets));
+    }
+    
+    // Extract bones for procedural animation
+    extractBones() {
+        if (!this.avatar) return;
+        
+        const boneNames = [
+            'Head', 'Neck', 'Spine', 'Hips',
+            'LeftArm', 'RightArm', 'LeftHand', 'RightHand',
+            'LeftLeg', 'RightLeg', 'LeftFoot', 'RightFoot'
+        ];
+        
+        this.avatar.traverse((child) => {
+            if (child.isBone) {
+                const boneName = boneNames.find(name => 
+                    child.name.toLowerCase().includes(name.toLowerCase())
+                );
+                if (boneName) {
+                    this.bones[boneName] = child;
+                }
+            }
+        });
+        
+        console.log('Bones found:', Object.keys(this.bones));
+    }
+    
+    // Setup animations based on avatar type
+    setupAnimationsForType(avatarType) {
+        if (Object.keys(this.animations).length > 0) {
+            // Model has built-in animations
+            console.log('Using model animations:', Object.keys(this.animations));
+            return;
+        }
+        
+        // Setup procedural animations
+        this.setupProceduralAnimations();
+    }
+    
+    // Procedural animations
+    setupProceduralAnimations() {
+        this.animations = {
+            idle: () => {
+                if (!this.avatar) return;
+                const time = Date.now() * 0.001;
+                
+                // Breathing
+                if (this.bones.Spine) {
+                    this.bones.Spine.rotation.x = Math.sin(time * 2) * 0.02;
+                }
+                
+                // Subtle head movement
+                if (this.bones.Head) {
+                    this.bones.Head.rotation.y = Math.sin(time * 0.5) * 0.1;
+                    this.bones.Head.rotation.x = Math.sin(time * 0.7) * 0.05;
+                }
+                
+                // Blink using morph targets
+                if (this.morphTargets.eyeBlinkLeft && this.morphTargets.eyeBlinkRight) {
+                    const blinkValue = Math.sin(time * 5) > 0.98 ? 1 : 0;
+                    this.setMorphTarget('eyeBlinkLeft', blinkValue);
+                    this.setMorphTarget('eyeBlinkRight', blinkValue);
+                }
+            },
+            
+            talking: () => {
+                if (!this.avatar) return;
+                const time = Date.now() * 0.001;
+                
+                // Head movement while talking
+                if (this.bones.Head) {
+                    this.bones.Head.rotation.y = Math.sin(time * 2) * 0.15;
+                    this.bones.Head.rotation.x = Math.sin(time * 3) * 0.1;
+                }
+                
+                // Mouth movement
+                if (this.morphTargets.mouthOpen) {
+                    const mouthValue = Math.abs(Math.sin(time * 10)) * 0.5;
+                    this.setMorphTarget('mouthOpen', mouthValue);
+                }
+                
+                // Hand gestures
+                if (this.bones.LeftHand) {
+                    this.bones.LeftHand.rotation.z = Math.sin(time * 4) * 0.2;
+                }
+                if (this.bones.RightHand) {
+                    this.bones.RightHand.rotation.z = -Math.sin(time * 4) * 0.2;
+                }
+            },
+            
+            thinking: () => {
+                if (!this.avatar) return;
+                const time = Date.now() * 0.001;
+                
+                // Thoughtful pose
+                if (this.bones.Head) {
+                    this.bones.Head.rotation.x = -0.2;
+                    this.bones.Head.rotation.y = Math.sin(time * 0.3) * 0.2;
+                }
+                
+                // Hand to chin pose
+                if (this.bones.RightArm) {
+                    this.bones.RightArm.rotation.z = -1.2;
+                    this.bones.RightArm.rotation.x = -0.5;
+                }
+            },
+            
+            happy: () => {
+                if (!this.avatar) return;
+                const time = Date.now() * 0.001;
+                
+                // Bouncy movement
+                if (this.avatar) {
+                    this.avatar.position.y = Math.abs(Math.sin(time * 3)) * 0.1;
+                }
+                
+                // Smile
+                if (this.morphTargets.mouthSmile) {
+                    this.setMorphTarget('mouthSmile', 0.8);
+                }
+                
+                // Happy eyes
+                if (this.morphTargets.eyeSquintLeft && this.morphTargets.eyeSquintRight) {
+                    this.setMorphTarget('eyeSquintLeft', 0.5);
+                    this.setMorphTarget('eyeSquintRight', 0.5);
+                }
+            },
+            
+            sad: () => {
+                if (!this.avatar) return;
+                
+                // Drooped head
+                if (this.bones.Head) {
+                    this.bones.Head.rotation.x = 0.3;
+                }
+                
+                // Sad expression
+                if (this.morphTargets.mouthFrown) {
+                    this.setMorphTarget('mouthFrown', 0.6);
+                }
+                
+                if (this.morphTargets.eyesClosed) {
+                    this.setMorphTarget('eyesClosed', 0.3);
+                }
+            }
+        };
+    }
+    
+    // Set morph target value
+    setMorphTarget(name, value) {
+        if (this.morphTargets[name]) {
+            const { mesh, index } = this.morphTargets[name];
+            mesh.morphTargetInfluences[index] = value;
+        }
+    }
+    
+    // Play animation
+    playAnimation(animationName) {
+        // Stop current animation
+        if (this.currentAnimation && this.animations[this.currentAnimation]) {
+            if (this.animations[this.currentAnimation].stop) {
+                this.animations[this.currentAnimation].stop();
+            }
+        }
+        
+        // Play new animation
+        if (this.animations[animationName]) {
+            this.currentAnimation = animationName;
+            
+            // If it's a Three.js AnimationAction
+            if (this.animations[animationName].play) {
+                this.animations[animationName].reset().play();
+            }
+            // Otherwise it's a procedural animation function
+            
+            console.log('Playing animation:', animationName);
+        }
+    }
+    
+    // Set facial expression
+    setExpression(emotion) {
+        const expressions = {
+            happy: {
+                mouthSmile: 0.8,
+                eyeSquintLeft: 0.3,
+                eyeSquintRight: 0.3
+            },
+            sad: {
+                mouthFrown: 0.6,
+                eyesClosed: 0.2,
+                browDownLeft: 0.4,
+                browDownRight: 0.4
+            },
+            angry: {
+                mouthFrown: 0.4,
+                browDownLeft: 0.8,
+                browDownRight: 0.8,
+                eyeSquintLeft: 0.2,
+                eyeSquintRight: 0.2
+            },
+            surprised: {
+                mouthOpen: 0.6,
+                eyeWideLeft: 0.8,
+                eyeWideRight: 0.8,
+                browUpLeft: 0.6,
+                browUpRight: 0.6
+            },
+            thinking: {
+                eyeLookUp: 0.5,
+                browUpLeft: 0.3,
+                mouthPucker: 0.2
+            },
+            neutral: {
+                // Reset all expressions
+            }
+        };
+        
+        // Reset all morph targets
+        Object.keys(this.morphTargets).forEach(key => {
+            this.setMorphTarget(key, 0);
+        });
+        
+        // Apply expression
+        const expression = expressions[emotion] || expressions.neutral;
+        Object.entries(expression).forEach(([target, value]) => {
+            this.setMorphTarget(target, value);
+        });
+        
+        // Also play corresponding animation
+        const emotionAnimations = {
+            happy: 'happy',
+            sad: 'sad',
+            excited: 'happy',
+            thinking: 'thinking',
+            neutral: 'idle'
+        };
+        
+        const animation = emotionAnimations[emotion] || 'idle';
+        this.playAnimation(animation);
+    }
+    
+    // Lip sync for talking
+    async lipSync(audioData) {
+        // Basic lip sync - in production you'd use a proper lip sync library
+        if (!this.morphTargets.mouthOpen) return;
+        
+        // Simulate lip movement
+        const duration = audioData.duration || 3000;
+        const startTime = Date.now();
+        
+        const lipSyncInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            if (elapsed > duration) {
+                clearInterval(lipSyncInterval);
+                this.setMorphTarget('mouthOpen', 0);
+                return;
+            }
+            
+            // Simple sine wave for mouth movement
+            const value = Math.abs(Math.sin(elapsed * 0.01)) * 0.6;
+            this.setMorphTarget('mouthOpen', value);
+        }, 50);
+    }
+    
+    // Update loading progress
+    updateLoadingProgress(percent) {
+        const loader = this.container.querySelector('.avatar-3d-loading');
+        if (loader) {
+            const text = loader.querySelector('.avatar-3d-loading-text');
+            if (text) {
+                text.textContent = `Loading avatar... ${percent.toFixed(0)}%`;
+            }
+        }
+    }
+    
+    // Create simple avatar (fallback)
     createSimpleAvatar(type) {
         const group = new THREE.Group();
         
@@ -228,13 +767,6 @@ export class Avatar3D {
         rightEye.position.set(0.08, 1.52, 0.2);
         group.add(rightEye);
         
-        // Add some personality based on type
-        if (type === 'anime') {
-            // Larger eyes for anime style
-            leftEye.scale.set(1.5, 1.5, 1.5);
-            rightEye.scale.set(1.5, 1.5, 1.5);
-        }
-        
         // Store references for animations
         group.userData = {
             head,
@@ -243,95 +775,23 @@ export class Avatar3D {
             rightEye
         };
         
+        // Set as bones for procedural animation
+        this.bones = {
+            Head: head,
+            Spine: body
+        };
+        
         return group;
     }
     
-    setupAnimations() {
-        // Define simple animations
-        this.animations = {
-            idle: () => {
-                if (!this.avatar) return;
-                const time = Date.now() * 0.001;
-                const { head, body } = this.avatar.userData;
-                
-                // Gentle breathing
-                body.scale.y = 1 + Math.sin(time * 2) * 0.02;
-                body.position.y = 0.8 + Math.sin(time * 2) * 0.01;
-                
-                // Subtle head movement
-                head.rotation.y = Math.sin(time * 0.5) * 0.1;
-                head.rotation.x = Math.sin(time * 0.7) * 0.05;
-            },
-            
-            talking: () => {
-                if (!this.avatar) return;
-                const time = Date.now() * 0.001;
-                const { head, body } = this.avatar.userData;
-                
-                // More active movement
-                body.scale.y = 1 + Math.sin(time * 4) * 0.03;
-                head.rotation.y = Math.sin(time * 2) * 0.15;
-                head.rotation.x = Math.sin(time * 3) * 0.1;
-                
-                // Simulate mouth movement (scale head slightly)
-                head.scale.y = 1 + Math.sin(time * 10) * 0.05;
-            },
-            
-            thinking: () => {
-                if (!this.avatar) return;
-                const time = Date.now() * 0.001;
-                const { head, body } = this.avatar.userData;
-                
-                // Thoughtful pose
-                head.rotation.x = -0.2;
-                head.rotation.y = Math.sin(time * 0.3) * 0.2;
-                body.rotation.y = Math.sin(time * 0.2) * 0.1;
-            },
-            
-            happy: () => {
-                if (!this.avatar) return;
-                const time = Date.now() * 0.001;
-                const { head, body } = this.avatar.userData;
-                
-                // Bouncy movement
-                body.position.y = 0.8 + Math.abs(Math.sin(time * 3)) * 0.1;
-                head.rotation.z = Math.sin(time * 4) * 0.1;
-                body.scale.set(
-                    1 + Math.sin(time * 5) * 0.05,
-                    1 + Math.cos(time * 5) * 0.05,
-                    1 + Math.sin(time * 5) * 0.05
-                );
-            }
-        };
-    }
-    
-    playAnimation(animationName) {
-        if (this.animations[animationName]) {
-            this.currentAnimation = animationName;
-            console.log('Playing animation:', animationName);
-        }
-    }
-    
-    setExpression(emotion) {
-        // Map emotions to animations
-        const emotionAnimations = {
-            happy: 'happy',
-            sad: 'idle',
-            excited: 'happy',
-            thinking: 'thinking',
-            neutral: 'idle'
-        };
-        
-        const animation = emotionAnimations[emotion] || 'idle';
-        this.playAnimation(animation);
-    }
-    
+    // Rotate avatar
     rotate(degrees) {
         if (this.avatar) {
             this.targetRotationY = this.avatar.rotation.y + (degrees * Math.PI / 180);
         }
     }
     
+    // Reset view
     resetView() {
         if (this.avatar) {
             this.targetRotationY = 0;
@@ -340,6 +800,7 @@ export class Avatar3D {
         this.camera.lookAt(0, 1, 0);
     }
     
+    // Set quality
     setQuality(quality) {
         this.quality = quality;
         
@@ -347,25 +808,30 @@ export class Avatar3D {
             this.renderer.antialias = quality === 'high';
             this.renderer.shadowMap.enabled = quality === 'high';
             
-            // Recreate renderer
-            this.container.removeChild(this.renderer.domElement);
-            this.setupScene();
-            
-            // Reload avatar if exists
-            if (this.avatar) {
-                const avatarType = this.avatar.userData.type || 'realistic';
-                this.loadAvatar(this.avatar.userData.companionId, avatarType);
+            // Update shadow quality
+            if (this.scene) {
+                this.scene.traverse((child) => {
+                    if (child.isLight && child.shadow) {
+                        child.castShadow = quality === 'high';
+                    }
+                });
             }
         }
     }
     
+    // Animation loop
     animate() {
         requestAnimationFrame(() => this.animate());
         
         const delta = this.clock.getDelta();
         
         // Update animations
-        if (this.currentAnimation && this.animations[this.currentAnimation]) {
+        if (this.mixer) {
+            this.mixer.update(delta);
+        }
+        
+        // Update procedural animations
+        if (this.currentAnimation && typeof this.animations[this.currentAnimation] === 'function') {
             this.animations[this.currentAnimation]();
         }
         
@@ -374,17 +840,13 @@ export class Avatar3D {
             this.avatar.rotation.y += (this.targetRotationY - this.avatar.rotation.y) * 0.1;
         }
         
-        // Update mixer if we have one (for loaded animations)
-        if (this.mixer) {
-            this.mixer.update(delta);
-        }
-        
         // Render
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
         }
     }
     
+    // Window resize handler
     onWindowResize() {
         if (!this.container || !this.camera || !this.renderer) return;
         
@@ -397,6 +859,7 @@ export class Avatar3D {
         this.renderer.setSize(width, height);
     }
     
+    // Show loading indicator
     showLoading(show) {
         const existingLoader = this.container.querySelector('.avatar-3d-loading');
         
@@ -413,6 +876,7 @@ export class Avatar3D {
         }
     }
     
+    // Show error message
     showError(message) {
         const error = document.createElement('div');
         error.className = 'avatar-3d-error';
@@ -434,6 +898,7 @@ export class Avatar3D {
         setTimeout(() => error.remove(), 5000);
     }
     
+    // Cleanup
     dispose() {
         if (this.renderer) {
             this.renderer.dispose();
@@ -453,86 +918,5 @@ export class Avatar3D {
         }
         
         window.removeEventListener('resize', this.onWindowResize);
-    }
-
-    // Ready Player Me loader
-    async loadReadyPlayerMeAvatar(url) {
-        const loader = new THREE.GLTFLoader();
-        
-        return new Promise((resolve, reject) => {
-            loader.load(
-                url,
-                (gltf) => {
-                    this.avatar = gltf.scene;
-                    this.avatar.scale.set(1, 1, 1);
-                    this.avatar.position.set(0, 0, 0);
-                    
-                    // Setup animations if available
-                    if (gltf.animations && gltf.animations.length > 0) {
-                        this.mixer = new THREE.AnimationMixer(this.avatar);
-                        this.animations.clips = gltf.animations;
-                    }
-                    
-                    this.scene.add(this.avatar);
-                    resolve();
-                },
-                (progress) => {
-                    console.log('Loading progress:', (progress.loaded / progress.total) * 100 + '%');
-                },
-                (error) => {
-                    reject(error);
-                }
-            );
-        });
-    }
-    
-    // Custom GLTF/GLB model loader
-    async loadCustomModel(path) {
-        const loader = new THREE.GLTFLoader();
-        
-        return new Promise((resolve, reject) => {
-            loader.load(
-                path,
-                (gltf) => {
-                    this.avatar = gltf.scene;
-                    this.scene.add(this.avatar);
-                    
-                    // Setup animation mixer
-                    if (gltf.animations && gltf.animations.length > 0) {
-                        this.mixer = new THREE.AnimationMixer(this.avatar);
-                        
-                        // Map animations by name
-                        gltf.animations.forEach(clip => {
-                            this.animations[clip.name] = this.mixer.clipAction(clip);
-                        });
-                    }
-                    
-                    resolve();
-                },
-                undefined,
-                reject
-            );
-        });
-    }
-    
-    // VRM model loader (requires three-vrm library)
-    async loadVRMModel(path) {
-        // Note: You'll need to install three-vrm
-        // npm install @pixiv/three-vrm
-        
-        // Example implementation:
-        /*
-        import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
-        
-        const loader = new THREE.GLTFLoader();
-        loader.register((parser) => new VRMLoaderPlugin(parser));
-        
-        const gltf = await loader.loadAsync(path);
-        const vrm = gltf.userData.vrm;
-        
-        this.avatar = vrm.scene;
-        this.vrm = vrm; // Store VRM instance for blendshape animations
-        this.scene.add(this.avatar);
-        */
     }
 }
