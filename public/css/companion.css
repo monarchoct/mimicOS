@@ -1,0 +1,384 @@
+/* Companion Styles */
+
+/* Companion Card */
+.companion-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+}
+
+.companion-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent, rgba(99, 102, 241, 0.1));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.companion-card:hover::before,
+.companion-card.active::before {
+    opacity: 1;
+}
+
+.companion-card-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: white;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.companion-card-info {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+}
+
+.companion-card-name {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+.companion-card-personality {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.companion-card-status {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--success-color);
+    border: 2px solid var(--surface-dark);
+}
+
+.companion-card.offline .companion-card-status {
+    background-color: var(--text-muted);
+}
+
+/* Companion Avatar Styles */
+.avatar-realistic {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.avatar-anime {
+    background: linear-gradient(135deg, #ec4899, #f472b6);
+}
+
+.avatar-cartoon {
+    background: linear-gradient(135deg, #10b981, #34d399);
+}
+
+/* 3D Avatar Container */
+.avatar-3d-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.avatar-3d-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.avatar-3d-loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid var(--surface-dark);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    margin: 0 auto 15px;
+    animation: spin 1s linear infinite;
+}
+
+.avatar-3d-loading-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Companion Emotions */
+.companion-emotion {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: rgba(26, 26, 26, 0.9);
+    padding: 8px 16px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.emotion-icon {
+    font-size: 1.2rem;
+}
+
+.emotion-happy { color: #fbbf24; }
+.emotion-sad { color: #60a5fa; }
+.emotion-excited { color: #f472b6; }
+.emotion-thinking { color: #a78bfa; }
+.emotion-neutral { color: #9ca3af; }
+
+/* Companion Actions Menu */
+.companion-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.companion-card:hover .companion-actions {
+    opacity: 1;
+}
+
+.companion-actions-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background-color: rgba(26, 26, 26, 0.8);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.companion-actions-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.companion-actions-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    background-color: var(--surface-dark);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    padding: 5px;
+    min-width: 150px;
+    display: none;
+}
+
+.companion-actions-menu.show {
+    display: block;
+}
+
+.companion-action-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.companion-action-item:hover {
+    background-color: var(--surface-light);
+}
+
+.companion-action-item i {
+    width: 16px;
+    text-align: center;
+}
+
+/* Companion Creation Preview */
+.companion-preview {
+    background-color: var(--surface-dark);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.companion-preview-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
+}
+
+.companion-preview-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.companion-preview-personality {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Companion Stats */
+.companion-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Companion Customization */
+.customization-section {
+    margin-bottom: 25px;
+}
+
+.customization-section h4 {
+    font-size: 1rem;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+}
+
+.color-picker {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.color-option {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.color-option:hover {
+    transform: scale(1.1);
+}
+
+.color-option.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* Trait Tags */
+.trait-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.trait-tag {
+    background-color: var(--surface-light);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.trait-tag:hover {
+    border-color: var(--primary-color);
+}
+
+.trait-tag.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Voice Sample Player */
+.voice-sample {
+    background-color: var(--surface-dark);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.voice-play-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.voice-play-btn:hover {
+    transform: scale(1.1);
+}
+
+.voice-play-btn.playing {
+    background-color: var(--accent-color);
+}
+
+.voice-sample-info {
+    flex: 1;
+}
+
+.voice-sample-name {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.voice-sample-duration {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
